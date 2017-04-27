@@ -2,7 +2,7 @@
 name          = "slice"
 version       = "0.0.1"
 authors       = ["hinaria <a@hinaria.com>"]
-description   = "slices (or subsets) for std::io::{ read, seek, write }"
+description   = "slices (aka subsets) for std::io::{ read, seek, write }."
 
 documentation = "https://docs.hinaria.com/p/slice"
 homepage      = "https://code.hinaria.com/p/slice"
