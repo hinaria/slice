@@ -1,0 +1,14 @@
+[package]
+name          = "slice"
+version       = "0.0.1"
+authors       = ["hinaria <a@hinaria.com>"]
+description   = "slices (or subsets) for std::io::{ read, seek, write }"
+
+documentation = "https://docs.hinaria.com/p/slice"
+homepage      = "https://code.hinaria.com/p/slice"
+repository    = "https://github.com/hinaria/slice"
+
+license       = "MIT/Apache-2.0"
+keywords      = ["io", "read", "write", "slice"]
+
+include       = ["src/lib.rs", "Cargo.toml"]

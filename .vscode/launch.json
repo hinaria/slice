@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name":            "run unit tests",
+            "type":            "cppvsdbg",
+            "request":         "launch",
+            "program":         "google-test-runner",
+            "args":            ["${workspaceRoot}", "--source", "/home/hina/projects/rust/bite-tests"],
+            "stopAtEntry":     false,
+            "cwd":             "${workspaceRoot}",
+            "externalConsole": false,
+            "environment":     [{
+                "name":  "RUST_LOG",
+                "value": "error"
+            }]
+        },
+        {
+            "name":            "attach",
+            "type":            "cppvsdbg",
+            "request":         "attach",
+            "processId":       "${command.pickProcess}"
+        }
+    ]
+}
