@@ -6,14 +6,11 @@
             "type":            "cppvsdbg",
             "request":         "launch",
             "program":         "google-test-runner",
-            "args":            ["${workspaceRoot}", "--source", "/home/hina/projects/rust/bite-tests"],
+            "args":            ["${workspaceRoot}", "--source", "/home/hina/projects/rust/slice/tests"],
             "stopAtEntry":     false,
             "cwd":             "${workspaceRoot}",
             "externalConsole": false,
-            "environment":     [{
-                "name":  "RUST_LOG",
-                "value": "error"
-            }]
+            "environment":     [{ "name": "RUST_LOG", "value": "info" }]
         },
         {
             "name":            "attach",

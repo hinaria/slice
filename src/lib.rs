@@ -1,16 +1,19 @@
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Read;
-use std::io::Result;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
+use {
+    std::fs::File,
+    std::io::Read,
+    std::io::Seek,
+    std::io::SeekFrom,
+    std::io::Write,
+};
 
 
+
+// `IoSlice` supports slicing streams up to 9,000 PiB in size (`i64::max` bytes).
+//
+// the value of `begin`, `length`, `remaining`, `begin + length` will never be greater than `std::max::i64`. these
+// invariants are guarenteed by the io-slice constructor.
+#[derive(Debug)]
 pub struct IoSlice<T> where T: Seek {
-    // note: the value of `begin`, `length`, `remaining`, and `begin + length` will never be greater than the value of `std::i64::max`
-    // note: `length` and `remaining` will never be greater than `std::usize::max`
-
     underlying: T,
     begin:      u64,
     length:     u64,
@@ -18,47 +21,35 @@ pub struct IoSlice<T> where T: Seek {
 }
 
 impl<T> IoSlice<T> where T: Seek {
-    pub fn new(mut source: T, begin: u64, length: u64) -> Result<IoSlice<T>> {
+    pub fn new(mut source: T, begin: u64, length: u64) -> Result<IoSlice<T>, std::io::Error> {
         // :: check invariants
-        let u64_max   = std::i64::MAX as u64;
-        let usize_max = std::usize::MAX as u64;
+        let i64_max = std::i64::MAX as u64;
 
-        if begin > u64_max || length > usize_max || begin + length > u64_max {
-            return Err(Error::from(ErrorKind::InvalidInput));
+        if begin > i64_max || length > i64_max || begin + length > i64_max {
+            return Err(std::io::ErrorKind::InvalidInput.into());
         }
 
 
         // :: attempt to seek to the requested position.
+        //        if our request to seek to `begin` does not place us at `begin`, this stream is "invalid".
         let seek = SeekFrom::Start(begin);
 
-        match source.seek(seek) {
-            Ok(position) => {
-                if position == begin {
-                    Ok(())
-                } else {
-                    // if the source does not seek us to the `begin` position, then this stream is "invalid".
-                    Err(Error::from(ErrorKind::InvalidInput))
-                }
-            },
-            Err(error) => {
-                Err(error)
-            },
-        }?;
+        if source.seek(seek)? == begin {
+            let underlying = source;
+            let remaining  = length;
 
-
-        // :: seek ok, now return the struct
-        let slice = IoSlice {
-            underlying: source,
-            begin:      begin,
-            length:     length,
-            remaining:  length,
-        };
-
-        Ok(slice)
+            Ok(IoSlice { underlying, begin, length, remaining })
+        } else {
+            Err(std::io::ErrorKind::InvalidInput.into())
+        }
     }
 
     pub fn len(&self) -> u64 {
         self.length
+    }
+
+    pub fn pos(&self) -> u64 {
+        self.position()
     }
 
     pub fn position(&self) -> u64 {
@@ -67,10 +58,10 @@ impl<T> IoSlice<T> where T: Seek {
 }
 
 impl<T> Seek for IoSlice<T> where T: Seek {
-    fn seek(&mut self, position: SeekFrom) -> Result<u64> {
+    fn seek(&mut self, position: SeekFrom) -> Result<u64, std::io::Error> {
         // :: make sure that position(i64) is not more `std::i64::max`.
         if match position { SeekFrom::Start(x) => x as u64, SeekFrom::Current(x) => x as u64, SeekFrom::End(x) => x as u64 } > std::i64::MAX as u64 {
-            return Err(Error::from(ErrorKind::InvalidInput));
+            return Err(std::io::ErrorKind::InvalidInput.into());
         }
 
 
@@ -81,50 +72,58 @@ impl<T> Seek for IoSlice<T> where T: Seek {
             SeekFrom::End(value)     => self.begin + self.length + value as u64,
         };
 
+
         // :: seek.
         //
         // if the new requested position is in bounds. seek to it, and make sure that the new position is the one we
         // requested.
         if absolute >= self.begin && absolute <= self.begin + self.length {
-            if self.underlying.seek(SeekFrom::Start(absolute))? == absolute {
+            let seek = SeekFrom::Start(absolute);
+
+            if self.underlying.seek(seek)? == absolute {
                 let new = absolute - self.begin;
 
                 self.remaining = self.length - new;
                 return Ok(new);
             }
 
-            return Err(Error::from(ErrorKind::Other));
+            return Err(std::io::ErrorKind::Other.into());
         }
 
         // the new requested position is out of bounds, return eof. we don't allow seeking out of bounds.
-        Err(Error::from(ErrorKind::UnexpectedEof))
+        Err(std::io::ErrorKind::UnexpectedEof.into())
     }
 }
 
 impl<T> Read for IoSlice<T> where T: Read + Seek {
-    fn read(&mut self, buffer: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
         // `std::io::read::read()` can only read `usize::max` bytes at once.
         let remaining   = std::cmp::min(self.remaining, std::usize::MAX as u64) as usize;
         let request     = std::cmp::min(remaining, buffer.len());
         let actual      = self.underlying.read(&mut buffer[..request])?;
+
         self.remaining -= actual as u64;
 
         Ok(actual)
     }
 
-    fn read_to_end(&mut self, buffer: &mut Vec<u8>) -> Result<usize> {
+    fn read_to_end(&mut self, buffer: &mut Vec<u8>) -> Result<usize, std::io::Error> {
+        if self.remaining > std::usize::MAX as u64 {
+            return Err(std::io::ErrorKind::InvalidInput.into())
+        }
+
         let length    = buffer.len();
         let remaining = self.remaining as usize;
 
         buffer.reserve(remaining);
 
         unsafe {
-            let ptr   = buffer.as_mut_ptr().offset(length as isize);
-            let slice = std::slice::from_raw_parts_mut(ptr, remaining);
+            let pointer = buffer.as_mut_ptr().add(length);
+            let slice   = std::slice::from_raw_parts_mut(pointer, remaining);
 
             self.underlying.read_exact(slice)?;
-
             buffer.set_len(length + remaining);
+
             self.remaining = 0;
         }
 
@@ -133,18 +132,63 @@ impl<T> Read for IoSlice<T> where T: Read + Seek {
 }
 
 impl<T> Write for IoSlice<T> where T: Write + Seek {
-    fn write(&mut self, buffer: &[u8]) -> Result<usize> {
+    fn write(&mut self, buffer: &[u8]) -> Result<usize, std::io::Error> {
         if buffer.len() as u64 > self.remaining {
-            return Err(Error::from(ErrorKind::UnexpectedEof));
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
         }
 
         let actual = self.underlying.write(buffer)?;
+
         self.remaining -= actual as u64;
 
         Ok(actual)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn write_all(&mut self, buffer: &[u8]) -> Result<(), std::io::Error> {
+        if buffer.len() as u64 > self.remaining {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+
+        self.underlying.write_all(buffer)
+    }
+
+    fn flush(&mut self) -> Result<(), std::io::Error> {
         self.underlying.flush()
+    }
+}
+
+impl<T> Clone for IoSlice<T> where T: Clone + Seek {
+    fn clone(&self) -> IoSlice<T> {
+        IoSlice {
+            underlying: self.underlying.clone(),
+            begin:      self.begin,
+            length:     self.length,
+            remaining:  self.remaining,
+        }
+    }
+}
+
+impl<T> TryClone for IoSlice<T> where T: TryClone + Seek {
+    fn try_clone(&self) -> Result<IoSlice<T>, std::io::Error> {
+        let clone = IoSlice {
+            underlying: self.underlying.try_clone()?,
+            begin:      self.begin,
+            length:     self.length,
+            remaining:  self.remaining,
+        };
+
+        Ok(clone)
+    }
+}
+
+
+
+pub trait TryClone: Sized {
+    fn try_clone(&self) -> Result<Self, std::io::Error>;
+}
+
+impl TryClone for File {
+    fn try_clone(&self) -> Result<Self, std::io::Error> {
+        self.try_clone()
     }
 }
