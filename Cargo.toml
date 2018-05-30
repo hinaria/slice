@@ -9,7 +9,8 @@ homepage      = "https://code.hinaria.com/p/slice"
 repository    = "https://github.com/hinaria/slice"
 
 license       = "MIT/Apache-2.0"
-keywords      = ["io", "read", "write", "slice"]
+keywords      = ["io", "read", "write", "seek", "slice", "offset", "length", "view", "file", "overlay"]
+categories    = ["filesystem"]
 readme        = "docs/crates.io/readme.md"
 
 include       = ["src/lib.rs", "Cargo.toml", "docs/crates.io/readme.md"]
