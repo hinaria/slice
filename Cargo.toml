@@ -1,6 +1,6 @@
 [package]
 name          = "slice"
-version       = "0.0.3"
+version       = "0.0.4"
 authors       = ["hinaria <a@hinaria.com>"]
 description   = "slices for streams implementing `std::io::read` and `std::io::write`."
 
@@ -9,7 +9,8 @@ homepage      = "https://code.hinaria.com/p/slice"
 repository    = "https://github.com/hinaria/slice"
 
 license       = "MIT/Apache-2.0"
-keywords      = ["io", "read", "write", "slice"]
+keywords      = ["io", "read", "write", "slice", "seek", "offset", "length", "view", "file", "overlay"]
+categories    = ["filesystem"]
 readme        = "docs/crates.io/readme.md"
 
 include       = ["src/lib.rs", "Cargo.toml", "docs/crates.io/readme.md"]

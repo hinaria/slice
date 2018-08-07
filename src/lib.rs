@@ -1,3 +1,41 @@
+//! Create slices of IO objects - `std::io::Read` and `std::io::Write`.
+//!
+//! If you have a file (or any other object), you can create a slice (or view) into some subset of it.
+//!
+//! `IoSlice` impls both `std::io::Read` and `std::io::Write` when the source implements them (and only one if the source
+//! only implements one).
+//!
+//! ## example usage.
+//!
+//! ```rust
+//! use { std::fs::File, slice::IoSlice };
+//!
+//!
+//! let source = File::open("/home/annie/data.png")?;
+//! let start  = 10;
+//! let length = 1000;
+//!
+//!
+//! // create a slice into `home/annie/data.png`, consisting of bytes [10 .. 10 + 1000]
+//! // of that file.
+//! //
+//! // `slice` impls both `std::io::Read` and `std::io::Write` because `source`
+//! // does too.
+//! let slice = IoSlice::new(source, start, length);
+//!
+//!
+//! // use like any other `std::io::Read` or `std::io::Write`:
+//! //
+//! //     slice.read_to_string(...)?;
+//! //     slice.read_exact(...)?;
+//! //     slice.write_all(...)?;
+//! //
+//! //     writeln!(slice, "hello {}", name)?;
+//! //
+//! ```
+
+
+
 use {
     std::fs::File,
     std::io::Read,
@@ -8,12 +46,46 @@ use {
 
 
 
-// `IoSlice` supports slicing streams up to 9,000 PiB in size (`i64::max` bytes).
-//
-// the value of `begin`, `length`, `remaining`, `begin + length` will never be greater than `std::max::i64`. these
-// invariants are guarenteed by the io-slice constructor.
+/// A slice, subset, or view into some object.
+///
+/// `IoSlice` impls both `std::io::Read` and `std::io::Write` when the source implements them (and only one if the source
+/// only implements one).
+///
+/// ## example usage.
+///
+/// ```rust
+/// use { std::fs::File, slice::IoSlice };
+///
+///
+/// let source = File::open("/home/annie/data.png")?;
+/// let start  = 10;
+/// let length = 1000;
+///
+///
+/// // create a slice into `home/annie/data.png`, consisting of bytes [10 .. 10 + 1000]
+/// // of that file.
+/// //
+/// // `slice` impls both `std::io::Read` and `std::io::Write` because `source`
+/// // does too.
+/// let slice = IoSlice::new(source, start, length);
+///
+///
+/// // use like any other `std::io::Read` or `std::io::Write`:
+/// //
+/// //     slice.read_to_string(...)?;
+/// //     slice.read_exact(...)?;
+/// //     slice.write_all(...)?;
+/// //
+/// //     writeln!(slice, "hello {}", name)?;
+/// //
+/// ```
 #[derive(Debug)]
 pub struct IoSlice<T> where T: Seek {
+    // `IoSlice` supports slicing streams up to 9,000 PiB in size (`i64::max` bytes).
+    //
+    // the value of `begin`, `length`, `remaining`, `begin + length` will never be greater than `std::max::i64`. these
+    // invariants are guarenteed by `IoSlice::new(...)`.
+
     underlying: T,
     begin:      u64,
     length:     u64,
@@ -21,6 +93,7 @@ pub struct IoSlice<T> where T: Seek {
 }
 
 impl<T> IoSlice<T> where T: Seek {
+    /// create a new slice into a specific subset of `source`.
     pub fn new(mut source: T, begin: u64, length: u64) -> Result<IoSlice<T>, std::io::Error> {
         // :: check invariants
         let i64_max = std::i64::MAX as u64;
@@ -44,14 +117,17 @@ impl<T> IoSlice<T> where T: Seek {
         }
     }
 
+    /// returns the total length of this io slice.
     pub fn len(&self) -> u64 {
         self.length
     }
 
+    /// returns the current position of this slice.
     pub fn pos(&self) -> u64 {
         self.position()
     }
 
+    /// returns the current position of this slice.
     pub fn position(&self) -> u64 {
         self.length - self.remaining
     }
@@ -183,6 +259,7 @@ impl<T> TryClone for IoSlice<T> where T: TryClone + Seek {
 
 
 
+/// Object cloning that can potentially fail.
 pub trait TryClone: Sized {
     fn try_clone(&self) -> Result<Self, std::io::Error>;
 }

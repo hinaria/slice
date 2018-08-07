@@ -1,11 +1,13 @@
 # slice.
 
+[crates.io](https://crates.io/crates/slice) · [docs.rs](https://docs.rs/slice/0.0.4/slice) · `slice = "0.0.4"`
+
 create slices of io objects `std::io::Read` and `std::io::Write`.
 
 if you have a file (or any other object), you can create a slice (or view) into some subset of it.
 
-`IoSlice` impls both `std::io::Read` and `std::io::Write` when the source implements them (and only one if the source
-only implements one).
+`IoSlice` will implement both `std::io::Read` and `std::io::Write` if the source implements them (or only one if the
+source implements only one).
 
 ## example usage.
 
